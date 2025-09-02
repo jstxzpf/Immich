@@ -1,0 +1,77 @@
+#
+# 优化的Immich部署配置 - 采用预下载模型的方式
+# 使用方法：
+# 1. 先运行 ./prepare-models.sh 下载模型
+# 2. 再运行 docker-compose -f docker-compose.optimized.yml up -d
+#
+
+name: immich
+
+services:
+  immich-server:
+    container_name: immich_server
+    # 使用中国镜像加速
+    image: ghcr.m.daocloud.io/immich-app/immich-server:${IMMICH_VERSION:-release}
+    volumes:
+      # 数据存储位置
+      - ${UPLOAD_LOCATION}:/data
+      # 外部照片目录挂载
+      - /data/cleanjpg:/mnt/external_photos
+      # 时区同步
+      - /etc/localtime:/etc/localtime:ro
+    env_file:
+      - .env
+    ports:
+      - '2283:2283'
+    depends_on:
+      - redis
+      - database
+      - immich-machine-learning
+    restart: always
+    healthcheck:
+      disable: false
+
+  immich-machine-learning:
+    container_name: immich_machine_learning
+    # 使用中国镜像加速
+    image: ghcr.m.daocloud.io/immich-app/immich-machine-learning:${IMMICH_VERSION:-release}
+    volumes:
+      # 暂时使用原有的Docker volume，后续可切换到本地目录
+      - model-cache:/cache
+    environment:
+      # 使用HuggingFace中国镜像
+      - HF_ENDPOINT=https://hf-mirror.com
+      # 允许访问本地缓存的模型
+      - TRANSFORMERS_OFFLINE=0
+      - HF_HUB_OFFLINE=0
+    env_file:
+      - .env
+    restart: always
+    healthcheck:
+      disable: false
+
+  redis:
+    container_name: immich_redis
+    # 使用中国镜像加速
+    image: docker.m.daocloud.io/valkey/valkey:8-bookworm@sha256:a137a2b60aca1a75130022d6bb96af423fefae4eb55faf395732db3544803280
+    healthcheck:
+      test: redis-cli ping || exit 1
+    restart: always
+
+  database:
+    container_name: immich_postgres
+    # 使用中国镜像加速
+    image: ghcr.m.daocloud.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0@sha256:32324a2f41df5de9efe1af166b7008c3f55646f8d0e00d9550c16c9822366b4a
+    environment:
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_DB: ${DB_DATABASE_NAME}
+      POSTGRES_INITDB_ARGS: '--data-checksums'
+    volumes:
+      # 数据库存储位置
+      - ${DB_DATA_LOCATION}:/var/lib/postgresql/data
+    shm_size: 128mb
+    restart: always
+
+volumes:
+  model-cache:
