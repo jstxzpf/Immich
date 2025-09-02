@@ -13,7 +13,7 @@ class FaceDetector(InferenceModel):
     depends = []
     identity = (ModelType.DETECTION, ModelTask.FACIAL_RECOGNITION)
 
-    def __init__(self, model_name: str, min_score: float = 0.7, **model_kwargs: Any) -> None:
+    def __init__(self, model_name: str, min_score: float = 0.3, **model_kwargs: Any) -> None:
         self.min_score = model_kwargs.pop("minScore", min_score)
         super().__init__(model_name, **model_kwargs)
 
